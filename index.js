@@ -10,7 +10,8 @@ import { scoreProducts } from "./utils/scoring.js";
 import { getKeywords } from "./utils/keywords.js";
 import { sendToTelegram } from "./telegram.js";
 
-const HISTORY_FILE = "./history.json";
+const HISTORY_FILE = "./data/history.json";
+
 
 if (!fs.existsSync(HISTORY_FILE)) {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify({ products: [] }, null, 2));
