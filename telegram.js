@@ -2,48 +2,49 @@ import TelegramBot from "node-telegram-bot-api";
 import { generatePost, generateCaption } from "./ai/content.js";
 import { generateDayCampaign, generateWeekCampaign } from "./ai/campaigns.js";
 import { generateImage } from "./ai/images.js";
-import { generatePromo } from "./ai/promo.js";
 import { scrapeGeorgianViral } from "./scrapers/georgianShops.js";
 
 const HELP_TEXT = `
-🪐 *ASTROMAN Marketing Agent*
+🪐 *ASTROMAN Marketing Bot — Commands*
 
-*კონტენტი:*
-/telescope — ტელესკოპის პოსტი
-/lamps — ლამპების პოსტი
-/levitating — ლევიტაციური ლამპის პოსტი
-/kids — ბავშვთა სათამაშოების პოსტი
-/caption [პროდუქტი] — მოკლე Instagram caption
-/promo [პროდუქტი] — აქციის ტექსტი
+*Content Generation:*
+/telescope — Facebook post for telescopes
+/lamps — Facebook post for lamps
+/levitating — Post for levitating lamps
+/kids — Post for kids toys
+/caption \`[topic]\` — Short Instagram caption
 
-*კამპანიები:*
-/daycampaign — დღიური გეგმა
-/weekcampaign — 7-დღიანი გეგმა
+*Campaigns:*
+/daycampaign — Full 1-day marketing plan
+/weekcampaign — Full 7-day marketing plan
 
-*გამოსახულება:*
-/image [აღწერა] — AI სურათი DALL-E 3-ით
+*Images:*
+/image \`[topic]\` — Generate product image via DALL-E
 
-*კვლევა:*
-/viralge — ვირუსული პროდუქტები MyMarket.ge-დან
-`.trim();
+*Research:*
+/viralge — Scrape trending products from Georgian shops
+
+*Help:*
+/start or /help — Show this menu
+`;
 
 function safeReply(bot, chatId, text) {
-  const safe = text || "❌ პასუხი ვერ მოვამზადე.";
-  return bot.sendMessage(chatId, safe, { parse_mode: "Markdown" }).catch(() =>
-    bot.sendMessage(chatId, safe)
-  );
+  return bot.sendMessage(chatId, text, { parse_mode: "Markdown" }).catch((err) => {
+    console.error("Send error:", err.message);
+    bot.sendMessage(chatId, text).catch(() => {});
+  });
 }
 
-async function handle(bot, msg, fn) {
+async function handleCommand(bot, msg, fn, loadingMsg = "⏳ გენერირება მიმდინარეობს...") {
   const chatId = msg.chat.id;
-  const thinking = await bot.sendMessage(chatId, "⏳ ვამზადებ...");
+  const loading = await bot.sendMessage(chatId, loadingMsg);
   try {
     const result = await fn();
-    await bot.deleteMessage(chatId, thinking.message_id).catch(() => {});
+    await bot.deleteMessage(chatId, loading.message_id).catch(() => {});
     await safeReply(bot, chatId, result);
   } catch (err) {
-    await bot.deleteMessage(chatId, thinking.message_id).catch(() => {});
-    await bot.sendMessage(chatId, `❌ შეცდომა: ${err.message}`);
+    await bot.deleteMessage(chatId, loading.message_id).catch(() => {});
+    await safeReply(bot, chatId, `❌ შეცდომა: ${err.message}`);
     console.error(err);
   }
 }
@@ -51,66 +52,63 @@ async function handle(bot, msg, fn) {
 export function startBot() {
   const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
-  console.log("🚀 Astroman Marketing Bot started");
+  console.log("✅ ASTROMAN Bot started");
 
-  bot.onText(/\/(start|help)/, (msg) => {
-    bot.sendMessage(msg.chat.id, HELP_TEXT, { parse_mode: "Markdown" });
-  });
+  // ── Help & Start ──────────────────────────────────────────────
+  bot.onText(/\/start/, (msg) => safeReply(bot, msg.chat.id, HELP_TEXT));
+  bot.onText(/\/help/, (msg) => safeReply(bot, msg.chat.id, HELP_TEXT));
 
+  // ── Product Posts ─────────────────────────────────────────────
   bot.onText(/\/telescope/, (msg) =>
-    handle(bot, msg, () => generatePost("ტელესკოპი", "facebook"))
+    handleCommand(bot, msg, () => generatePost("ტელესკოპი", "facebook"))
   );
-
   bot.onText(/\/lamps/, (msg) =>
-    handle(bot, msg, () => generatePost("ვარსკვლავური ლამპები", "facebook"))
+    handleCommand(bot, msg, () => generatePost("ლამპები", "facebook"))
   );
-
   bot.onText(/\/levitating/, (msg) =>
-    handle(bot, msg, () => generatePost("ლევიტაციური ლამპა", "instagram"))
+    handleCommand(bot, msg, () => generatePost("ლევიტაციური ლამპა", "facebook"))
   );
-
   bot.onText(/\/kids/, (msg) =>
-    handle(bot, msg, () => generatePost("ბავშვთა სათამაშოები", "facebook"))
+    handleCommand(bot, msg, () => generatePost("ბავშვთა სათამაშოები", "facebook"))
   );
 
-  bot.onText(/\/caption (.+)/, (msg, match) =>
-    handle(bot, msg, () => generateCaption(match[1]))
-  );
-
-  bot.onText(/\/caption$/, (msg) => {
-    bot.sendMessage(msg.chat.id, "⚠️ მიუთითე პროდუქტი: `/caption ტელესკოპი`", { parse_mode: "Markdown" });
+  // ── Instagram Caption ─────────────────────────────────────────
+  bot.onText(/\/caption (.+)/, (msg, match) => {
+    const topic = match[1].trim();
+    handleCommand(bot, msg, () => generateCaption(topic), "📸 კაფცია იქმნება...");
   });
-
-  bot.onText(/\/promo (.+)/, (msg, match) =>
-    handle(bot, msg, () => generatePromo(match[1]))
+  bot.onText(/^\/caption$/, (msg) =>
+    safeReply(bot, msg.chat.id, "⚠️ გამოიყენე: /caption \`[თემა]\`\nმაგ: /caption ტელესკოპი")
   );
 
-  bot.onText(/\/promo$/, (msg) => {
-    bot.sendMessage(msg.chat.id, "⚠️ მიუთითე პროდუქტი: `/promo ტელესკოპი`", { parse_mode: "Markdown" });
-  });
-
+  // ── Campaigns ─────────────────────────────────────────────────
   bot.onText(/\/daycampaign/, (msg) =>
-    handle(bot, msg, () => generateDayCampaign())
+    handleCommand(bot, msg, generateDayCampaign, "📅 დღიური კამპანია იქმნება...")
   );
-
   bot.onText(/\/weekcampaign/, (msg) =>
-    handle(bot, msg, () => generateWeekCampaign())
+    handleCommand(bot, msg, generateWeekCampaign, "🗓️ კვირის კამპანია იქმნება...")
   );
 
-  bot.onText(/\/image (.+)/, (msg, match) => {
+  // ── Image Generation ──────────────────────────────────────────
+  bot.onText(/\/image (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
-    handle(bot, msg, async () => {
-      const imageUrl = await generateImage(match[1]);
-      await bot.sendPhoto(chatId, imageUrl);
-      return null;
-    });
+    const topic = match[1].trim();
+    const loading = await bot.sendMessage(chatId, "🎨 სურათი გენერირდება DALL-E-ით...");
+    try {
+      const imageUrl = await generateImage(topic);
+      await bot.deleteMessage(chatId, loading.message_id).catch(() => {});
+      await bot.sendPhoto(chatId, imageUrl, { caption: `🪐 ${topic}` });
+    } catch (err) {
+      await bot.deleteMessage(chatId, loading.message_id).catch(() => {});
+      await safeReply(bot, chatId, `❌ სურათის გენერაცია ვერ მოხერხდა: ${err.message}`);
+    }
   });
+  bot.onText(/^\/image$/, (msg) =>
+    safeReply(bot, msg.chat.id, "⚠️ გამოიყენე: /image \`[თემა]\`\nმაგ: /image telescope in space")
+  );
 
-  bot.onText(/\/image$/, (msg) => {
-    bot.sendMessage(msg.chat.id, "⚠️ მიუთითე თემა: `/image ტელესკოპი კოსმოსში`", { parse_mode: "Markdown" });
-  });
-
+  // ── Viral Scraper ─────────────────────────────────────────────
   bot.onText(/\/viralge/, (msg) =>
-    handle(bot, msg, () => scrapeGeorgianViral())
+    handleCommand(bot, msg, scrapeGeorgianViral, "🔍 სქრეპინგი მიმდინარეობს...")
   );
 }

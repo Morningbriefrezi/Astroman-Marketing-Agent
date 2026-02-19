@@ -3,7 +3,7 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function generateImage(topic) {
-  const prompt = `Ultra realistic product photo of ${topic}. Cosmic luxury interior, deep space background with nebula colors, professional studio lighting, cinematic composition, 4K detail, no text, no watermark.`;
+  const prompt = `Ultra realistic product photography of ${topic}. Cosmic dark background with luxury studio lighting. Professional e-commerce shot. Cinematic, high detail, 4K quality.`;
 
   const result = await openai.images.generate({
     model: "dall-e-3",
