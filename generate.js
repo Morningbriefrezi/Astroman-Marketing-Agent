@@ -9,6 +9,7 @@ const CHAT_ID = process.env.CHAT_ID;
 const OPENAI_KEY = process.env.OPENAI_KEY;
 
 async function generateMarketingPlan() {
+  const day = process.env.DAY || "Monday";
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -19,7 +20,7 @@ async function generateMarketingPlan() {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "You are a world-class marketing strategist." },
-        { role: "user", content: buildPrompt() }
+        { role: "user", content: buildPrompt(day) }
       ],
       temperature: 0.95
     })

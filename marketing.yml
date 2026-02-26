@@ -2,8 +2,8 @@ name: AstroMan Marketing Agent
 
 on:
   schedule:
-    - cron: "0 8 * * *"    # 12:00 Georgia time
-    - cron: "0 16 * * *"   # 20:00 Georgia time
+    - cron: "0 8 * * 1"    # Monday 12:00 Georgia time
+    - cron: "0 8 * * 5"    # Friday 12:00 Georgia time
   workflow_dispatch:
 
 jobs:
@@ -19,7 +19,9 @@ jobs:
 
       - run: npm install
 
-      - run: node generate.js
+      - run: |
+          export DAY=$(date +%A)
+          node generate.js
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
